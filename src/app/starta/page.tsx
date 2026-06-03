@@ -12,6 +12,7 @@ interface FormData {
   contactPhone: string;
   memberCount: string;
   message: string;
+  password: string;
 }
 
 const initialForm: FormData = {
@@ -22,6 +23,7 @@ const initialForm: FormData = {
   contactPhone: "",
   memberCount: "",
   message: "",
+  password: "",
 };
 
 export default function StartaPage() {
@@ -229,6 +231,19 @@ export default function StartaPage() {
 
               <label className="block mb-4">
                 <span className="text-sm font-semibold text-blue-900 block mb-1">
+                  Lösenord till er dashboard *
+                </span>
+                <input
+                  type="password"
+                  placeholder="Minst 8 tecken"
+                  value={form.password}
+                  onChange={(e) => update("password", e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-gray-800"
+                />
+              </label>
+
+              <label className="block mb-4">
+                <span className="text-sm font-semibold text-blue-900 block mb-1">
                   Telefon
                 </span>
                 <input
@@ -262,7 +277,7 @@ export default function StartaPage() {
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  disabled={!form.contactName || !form.contactEmail}
+                  disabled={!form.contactName || !form.contactEmail || form.password.length < 8}
                   className="flex-1 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed text-blue-900 font-bold py-3 rounded-full transition-colors"
                 >
                   Nästa →
@@ -270,6 +285,8 @@ export default function StartaPage() {
               </div>
             </div>
           )}
+
+
 
           {/* Step 3 — Confirm */}
           {step === 3 && (

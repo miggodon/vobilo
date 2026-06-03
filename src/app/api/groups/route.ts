@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hash } from "bcryptjs";
 import { db } from "@/lib/db";
 
 function slugify(name: string): string {
@@ -11,13 +12,17 @@ function slugify(name: string): string {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { groupName, groupType, contactName, contactEmail, contactPhone, memberCount, message } = body;
+  const { groupName, groupType, contactName, contactEmail, contactPhone, memberCount, message, password } = body;
 
-  if (!groupName || !contactName || !contactEmail) {
+  if (!groupName || !contactName || !contactEmail || !password) {
     return NextResponse.json({ error: "Saknade fält" }, { status: 400 });
   }
 
-  // Generera unik slug
+  const existing = await db.user.findUnique({ where: { email: contactEmail } });
+  if (existing) {
+    return NextResponse.json({ error: "E-postadressen används redan" }, { status: 409 });
+  }
+
   const base = slugify(groupName);
   let slug = base;
   let suffix = 1;
@@ -34,17 +39,18 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Skapa kontaktperson som SELLER
+  const hashedPassword = await hash(password, 12);
+
   await db.user.create({
     data: {
       email: contactEmail,
       name: contactName,
+      password: hashedPassword,
       role: "SELLER",
       groupId: group.id,
     },
   });
 
-  // Skapa en aktiv kampanj direkt
   const endsAt = new Date();
   endsAt.setDate(endsAt.getDate() + 30);
 
