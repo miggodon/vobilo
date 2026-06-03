@@ -229,7 +229,7 @@ export default function StartaPage() {
                 />
               </label>
 
-              <label className="block mb-4">
+              <div className="mb-4">
                 <span className="text-sm font-semibold text-blue-900 block mb-1">
                   Lösenord till er dashboard *
                 </span>
@@ -240,7 +240,21 @@ export default function StartaPage() {
                   onChange={(e) => update("password", e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-gray-800"
                 />
-              </label>
+                {form.password.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {[
+                      { ok: form.password.length >= 8, label: "Minst 8 tecken" },
+                      { ok: /[A-Z]/.test(form.password), label: "Minst en stor bokstav" },
+                      { ok: /[0-9]/.test(form.password), label: "Minst en siffra" },
+                    ].map(({ ok, label }) => (
+                      <div key={label} className={`flex items-center gap-2 text-xs ${ok ? "text-green-600" : "text-gray-400"}`}>
+                        <span>{ok ? "✓" : "○"}</span>
+                        <span>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <label className="block mb-4">
                 <span className="text-sm font-semibold text-blue-900 block mb-1">
@@ -277,7 +291,7 @@ export default function StartaPage() {
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  disabled={!form.contactName || !form.contactEmail || form.password.length < 8}
+                  disabled={!form.contactName || !form.contactEmail || form.password.length < 8 || !/[A-Z]/.test(form.password) || !/[0-9]/.test(form.password)}
                   className="flex-1 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed text-blue-900 font-bold py-3 rounded-full transition-colors"
                 >
                   Nästa →
