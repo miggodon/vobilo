@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Group {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  users       User[]
+  orders      Order[]
+  campaigns   Campaign[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(BUYER)
+  groupId   String?
+  createdAt DateTime @default(now())
+
+  group     Group?   @relation(fields: [groupId], references: [id])
+  orders    Order[]
+}
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String?
+  buyPrice    Float
+  sellPrice   Float
+  category    String?
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  orderItems  OrderItem[]
+}
+
+model Campaign {
+  id        String         @id @default(cuid())
+  groupId   String
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  status    CampaignStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+
+  group     Group          @relation(fields: [groupId], references: [id])
+  orders    Order[]
+}
+
+enum CampaignStatus {
+  ACTIVE
+  CLOSED
+  DELIVERED
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  groupId    String
+  userId     String
+  campaignId String?
+  total      Float
+  status     OrderStatus @default(PENDING)
+  createdAt  DateTime    @default(now())
+
+  group      Group       @relation(fields: [groupId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+  campaign   Campaign?   @relation(fields: [campaignId], references: [id])
+  items      OrderItem[]
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
