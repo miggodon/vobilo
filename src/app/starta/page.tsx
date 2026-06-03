@@ -29,6 +29,8 @@ export default function StartaPage() {
   const [form, setForm] = useState<FormData>(initialForm);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [slug, setSlug] = useState("");
+  const [error, setError] = useState("");
 
   function update(field: keyof FormData, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -36,32 +38,50 @@ export default function StartaPage() {
 
   async function submit() {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    setDone(true);
+    setError("");
+    try {
+      const res = await fetch("/api/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Något gick fel");
+      setSlug(data.slug);
+      setDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Något gick fel");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (done) {
+    const sellUrl = `${window.location.origin}/salj/${slug}`;
     return (
       <div className="min-h-screen bg-yellow-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
           <div className="text-6xl mb-6">🎉</div>
-          <h1 className="text-3xl font-black text-blue-800 mb-4">
-            Ni är anmälda!
-          </h1>
-          <p className="text-gray-600 mb-2">
-            Vi skickar er unika säljlänk till
-          </p>
-          <p className="font-bold text-blue-800 mb-6">{form.contactEmail}</p>
-          <p className="text-sm text-gray-500 mb-8">
-            Ni hör från oss inom 24 timmar med alla instruktioner.
-          </p>
-          <a
-            href="/"
-            className="bg-blue-800 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full transition-colors inline-block"
-          >
-            ← Tillbaka till start
-          </a>
+          <h1 className="text-3xl font-black text-blue-800 mb-4">Ni är igång!</h1>
+          <p className="text-gray-600 mb-6">Er unika säljlänk är redo att dela:</p>
+          <div className="bg-white border border-yellow-300 rounded-xl px-5 py-4 font-mono text-blue-800 font-bold text-sm mb-6 break-all">
+            {sellUrl}
+          </div>
+          <div className="flex gap-3 justify-center mb-8">
+            <button
+              onClick={() => navigator.clipboard.writeText(sellUrl)}
+              className="bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold py-2 px-5 rounded-full text-sm transition-colors"
+            >
+              Kopiera länk
+            </button>
+            <a
+              href={`/salj/${slug}`}
+              className="bg-blue-800 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-full text-sm transition-colors"
+            >
+              Öppna butiken →
+            </a>
+          </div>
+          <p className="text-xs text-gray-400">Bekräftelse skickad till {form.contactEmail}</p>
         </div>
       </div>
     );
@@ -288,9 +308,15 @@ export default function StartaPage() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 rounded-xl p-4 mb-6 text-sm text-blue-700">
-                📬 Vi skickar er unika säljlänk till <strong>{form.contactEmail}</strong> inom 24 timmar.
+              <div className="bg-blue-50 rounded-xl p-4 mb-4 text-sm text-blue-700">
+                🔗 Er unika säljlänk skapas direkt — ni kan börja sälja omedelbart.
               </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button
@@ -304,7 +330,7 @@ export default function StartaPage() {
                   disabled={loading}
                   className="flex-1 bg-blue-800 hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-3 rounded-full transition-colors"
                 >
-                  {loading ? "Skickar..." : "Skicka in ✓"}
+                  {loading ? "Skapar er butik..." : "Starta nu ✓"}
                 </button>
               </div>
             </div>

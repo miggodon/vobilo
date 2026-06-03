@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Product {
   id: string;
   name: string;
   description: string;
-  price: number;
-  emoji: string;
+  sellPrice: number;
   category: string;
 }
 
 interface CartItem extends Product {
   qty: number;
+  emoji: string;
 }
 
 interface CheckoutForm {
@@ -21,44 +21,46 @@ interface CheckoutForm {
   phone: string;
 }
 
-const products: Product[] = [
-  { id: "1", name: "Hamburgerpress", description: "Forma perfekta hamburgare hemma. Gjord i rostfritt stål.", price: 99, emoji: "🍔", category: "Kök" },
-  { id: "2", name: "Bagagevåg", description: "Mät vikten på resväskan — undvik överviktsavgifter.", price: 99, emoji: "🧳", category: "Resor" },
-  { id: "3", name: "Gympåse", description: "Rymlig påse med separat skofack. Perfekt för träning.", price: 129, emoji: "🎒", category: "Sport" },
-  { id: "4", name: "Kryddkvarnar (set)", description: "Eleganta kvarnar för salt och peppar med justerbar grovlek.", price: 99, emoji: "🧂", category: "Kök" },
-  { id: "5", name: "Magnetlist för knivar", description: "Håll ordning på knivarna på ett snyggt och säkert sätt.", price: 99, emoji: "🔪", category: "Kök" },
-  { id: "6", name: "Silikonspatlar 3-pack", description: "Värmetåliga spatlar för all matlagning. Diskmaskinssäkra.", price: 79, emoji: "🥄", category: "Kök" },
-  { id: "7", name: "Powerbank", description: "10 000 mAh — laddar telefonen två gånger om. USB-C.", price: 149, emoji: "🔋", category: "Tech" },
-  { id: "8", name: "Bluetooth-högtalare", description: "Kompakt högtalare med 10h batteritid och vattentålig yta.", price: 149, emoji: "🔊", category: "Tech" },
-  { id: "9", name: "LED-pannlampa", description: "Händerna fria i mörkret. Upp till 100m lysskraft.", price: 79, emoji: "🔦", category: "Outdoor" },
-  { id: "10", name: "Digital köksvåg", description: "Precisionsvåg upp till 5 kg. Perfekt för bakning.", price: 99, emoji: "⚖️", category: "Kök" },
-  { id: "11", name: "Termosmugg med lock", description: "Håller drycken varm i 6h. Passar de flesta kophållare.", price: 119, emoji: "☕", category: "Resor" },
-  { id: "12", name: "Knivslip", description: "Få eggen vassegg igen på några sekunder.", price: 69, emoji: "🗡️", category: "Kök" },
-  { id: "13", name: "Kabelorganiserare", description: "Håll ordning på alla kablar med dessa praktiska clips.", price: 69, emoji: "🔌", category: "Tech" },
-  { id: "14", name: "Hopfällbar mugg", description: "Platsspar i väskan — vikbar silikonmugg med lock.", price: 99, emoji: "🥤", category: "Resor" },
-  { id: "15", name: "Shoppingpåsar 3-pack", description: "Hållbara och vikbara. Tar aldrig plats i väskan.", price: 79, emoji: "🛍️", category: "Hem" },
-];
-
-const categories = ["Alla", ...Array.from(new Set(products.map((p) => p.category)))];
+// Emoji map — utökas vid behov
+const emojiMap: Record<string, string> = {
+  "Hamburgerpress": "🍔", "Bagagevåg": "🧳", "Gympåse": "🎒",
+  "Kryddkvarnar (set)": "🧂", "Magnetlist för knivar": "🔪",
+  "Silikonspatlar 3-pack": "🥄", "Powerbank": "🔋",
+  "Bluetooth-högtalare": "🔊", "LED-pannlampa": "🔦",
+  "Digital köksvåg": "⚖️", "Termosmugg med lock": "☕",
+  "Knivslip": "🗡️", "Kabelorganiserare": "🔌",
+  "Hopfällbar mugg": "🥤", "Shoppingpåsar 3-pack": "🛍️",
+};
 
 type View = "shop" | "cart" | "checkout" | "done";
 
 export default function StorePage({ slug, groupName }: { slug: string; groupName: string }) {
+  const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [view, setView] = useState<View>("shop");
   const [activeCategory, setActiveCategory] = useState("Alla");
   const [form, setForm] = useState<CheckoutForm>({ name: "", email: "", phone: "" });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then(setProducts)
+      .catch(() => setError("Kunde inte ladda produkter"));
+  }, []);
+
+  const categories = ["Alla", ...Array.from(new Set(products.map((p) => p.category)))];
   const filtered = activeCategory === "Alla" ? products : products.filter((p) => p.category === activeCategory);
   const totalItems = cart.reduce((s, i) => s + i.qty, 0);
-  const totalPrice = cart.reduce((s, i) => s + i.qty * i.price, 0);
+  const totalPrice = cart.reduce((s, i) => s + i.qty * i.sellPrice, 0);
 
   function addToCart(product: Product) {
+    const emoji = emojiMap[product.name] ?? "📦";
     setCart((prev) => {
       const existing = prev.find((i) => i.id === product.id);
       if (existing) return prev.map((i) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { ...product, qty: 1 }];
+      return [...prev, { ...product, qty: 1, emoji }];
     });
   }
 
@@ -74,9 +76,27 @@ export default function StorePage({ slug, groupName }: { slug: string; groupName
 
   async function placeOrder() {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    setView("done");
+    setError("");
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug,
+          buyerName: form.name,
+          buyerEmail: form.email,
+          buyerPhone: form.phone,
+          items: cart.map((i) => ({ id: i.id, qty: i.qty })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Något gick fel");
+      setView("done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Något gick fel");
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Done
@@ -137,14 +157,13 @@ export default function StorePage({ slug, groupName }: { slug: string; groupName
             </label>
           </div>
 
-          {/* Order summary */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
             <h2 className="font-bold text-blue-900 mb-3 text-sm">Din beställning</h2>
             <div className="space-y-2 mb-4">
               {cart.map((i) => (
                 <div key={i.id} className="flex justify-between text-sm">
                   <span className="text-gray-700">{i.emoji} {i.name} × {i.qty}</span>
-                  <span className="font-semibold text-blue-900">{i.qty * i.price} kr</span>
+                  <span className="font-semibold text-blue-900">{i.qty * i.sellPrice} kr</span>
                 </div>
               ))}
             </div>
@@ -154,9 +173,13 @@ export default function StorePage({ slug, groupName }: { slug: string; groupName
             </div>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-blue-800 mb-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4 text-sm text-blue-800">
             🤝 Du stöder <strong>{groupName}</strong> med din beställning!
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm text-red-700">{error}</div>
+          )}
 
           <button
             onClick={placeOrder}
@@ -201,22 +224,16 @@ export default function StorePage({ slug, groupName }: { slug: string; groupName
                     <span className="text-3xl">{item.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-blue-900 text-sm">{item.name}</p>
-                      <p className="text-xs text-gray-400">{item.price} kr / st</p>
+                      <p className="text-xs text-gray-400">{item.sellPrice} kr / st</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updateQty(item.id, -1)}
-                        className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition-colors">
-                        −
-                      </button>
+                        className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition-colors">−</button>
                       <span className="w-5 text-center font-bold text-blue-900 text-sm">{item.qty}</span>
                       <button onClick={() => updateQty(item.id, 1)}
-                        className="w-7 h-7 rounded-full bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold text-sm transition-colors">
-                        +
-                      </button>
+                        className="w-7 h-7 rounded-full bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold text-sm transition-colors">+</button>
                     </div>
-                    <span className="font-black text-blue-900 text-sm w-16 text-right">
-                      {item.qty * item.price} kr
-                    </span>
+                    <span className="font-black text-blue-900 text-sm w-16 text-right">{item.qty * item.sellPrice} kr</span>
                   </div>
                 ))}
               </div>
@@ -237,24 +254,20 @@ export default function StorePage({ slug, groupName }: { slug: string; groupName
     );
   }
 
-  // Shop (default)
+  // Shop
   return (
     <div className="min-h-screen bg-yellow-50">
-      {/* Nav */}
       <nav className="bg-blue-800 text-white px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <span className="text-xl font-black text-yellow-400">Vobilo</span>
         <button onClick={() => setView("cart")}
           className="relative flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold px-4 py-2 rounded-full text-sm transition-colors">
           🛒 Varukorg
           {totalItems > 0 && (
-            <span className="bg-blue-800 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center">
-              {totalItems}
-            </span>
+            <span className="bg-blue-800 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center">{totalItems}</span>
           )}
         </button>
       </nav>
 
-      {/* Group header */}
       <div className="bg-gradient-to-b from-blue-800 to-blue-700 text-white px-6 py-10 text-center">
         <p className="text-blue-300 text-sm mb-1">Du handlar hos</p>
         <h1 className="text-3xl font-black mb-2">{groupName}</h1>
@@ -264,48 +277,48 @@ export default function StorePage({ slug, groupName }: { slug: string; groupName
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Category filter */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-sm text-red-700">{error}</div>
+        )}
+
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
           {categories.map((cat) => (
-            <button key={cat}
-              onClick={() => setActiveCategory(cat)}
+            <button key={cat} onClick={() => setActiveCategory(cat)}
               className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                activeCategory === cat
-                  ? "bg-blue-800 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-yellow-400"
+                activeCategory === cat ? "bg-blue-800 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-yellow-400"
               }`}>
               {cat}
             </button>
           ))}
         </div>
 
-        {/* Product grid */}
+        {products.length === 0 && !error && (
+          <div className="text-center py-20 text-gray-400">Laddar produkter...</div>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {filtered.map((product) => {
             const inCart = cart.find((i) => i.id === product.id);
+            const emoji = emojiMap[product.name] ?? "📦";
             return (
               <div key={product.id}
                 className="bg-white rounded-2xl border border-gray-100 hover:border-yellow-300 transition-all overflow-hidden group">
                 <div className="bg-yellow-50 h-28 flex items-center justify-center text-5xl group-hover:scale-105 transition-transform">
-                  {product.emoji}
+                  {emoji}
                 </div>
                 <div className="p-4">
                   <p className="text-xs text-blue-500 font-medium mb-1">{product.category}</p>
                   <p className="font-bold text-blue-900 text-sm leading-tight mb-1">{product.name}</p>
                   <p className="text-xs text-gray-400 leading-relaxed mb-3 line-clamp-2">{product.description}</p>
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-black text-blue-800">{product.price} kr</span>
+                    <span className="text-lg font-black text-blue-800">{product.sellPrice} kr</span>
                     {inCart ? (
                       <div className="flex items-center gap-1">
                         <button onClick={() => updateQty(product.id, -1)}
-                          className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors">
-                          −
-                        </button>
+                          className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors">−</button>
                         <span className="w-4 text-center text-sm font-bold text-blue-900">{inCart.qty}</span>
                         <button onClick={() => updateQty(product.id, 1)}
-                          className="w-6 h-6 rounded-full bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold text-xs transition-colors">
-                          +
-                        </button>
+                          className="w-6 h-6 rounded-full bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold text-xs transition-colors">+</button>
                       </div>
                     ) : (
                       <button onClick={() => addToCart(product)}
@@ -321,7 +334,6 @@ export default function StorePage({ slug, groupName }: { slug: string; groupName
         </div>
       </div>
 
-      {/* Sticky cart bar when items in cart */}
       {totalItems > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-blue-800 text-white px-6 py-4 flex items-center justify-between shadow-2xl">
           <span className="text-sm text-blue-200">
