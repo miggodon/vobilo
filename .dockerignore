@@ -1,0 +1,13 @@
+node_modules
+!node_modules/prisma
+!node_modules/@prisma
+!node_modules/.bin
+.git
+.env
+*.md
+!README.md
+.next
+!.next/standalone
+!.next/static
+prisma.config.ts
+!prisma.config.ts

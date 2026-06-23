@@ -1,21 +1,55 @@
 services:
   app:
+    profiles: [docker-app]
     build: .
-    ports:
-      - "3000:3000"
+    container_name: vobilo-app
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://vobilo:vobilo@db:5432/vobilo
+      - DATABASE_URL=postgresql://vobilo:${POSTGRES_PASSWORD}@vobilo-db:5432/vobilo
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-https://vobilo.se}
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - vobilo
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.middlewares.vobilo-gzip.compress=true
+      - traefik.http.middlewares.vobilo-redirect-https.redirectscheme.scheme=https
+      - 'traefik.http.middlewares.vobilo-redirect-www.redirectregex.regex=^https?://www\.vobilo\.se/(.*)'
+      - traefik.http.middlewares.vobilo-redirect-www.redirectregex.replacement=https://vobilo.se/$${1}
+      - traefik.http.middlewares.vobilo-redirect-www.redirectregex.permanent=true
+      - traefik.http.routers.vobilo-http.entryPoints=http
+      - traefik.http.routers.vobilo-http.middlewares=vobilo-redirect-https
+      - traefik.http.routers.vobilo-http.rule=Host(`vobilo.se`) && PathPrefix(`/`)
+      - traefik.http.routers.vobilo-https.entryPoints=https
+      - traefik.http.routers.vobilo-https.middlewares=vobilo-gzip
+      - traefik.http.routers.vobilo-https.rule=Host(`vobilo.se`) && PathPrefix(`/`)
+      - traefik.http.routers.vobilo-https.tls=true
+      - traefik.http.routers.vobilo-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.vobilo-https.service=vobilo
+      - traefik.http.routers.vobilo-www-http.entryPoints=http
+      - traefik.http.routers.vobilo-www-http.middlewares=vobilo-redirect-www
+      - traefik.http.routers.vobilo-www-http.rule=Host(`www.vobilo.se`)
+      - traefik.http.routers.vobilo-www-https.entryPoints=https
+      - traefik.http.routers.vobilo-www-https.middlewares=vobilo-redirect-www
+      - traefik.http.routers.vobilo-www-https.rule=Host(`www.vobilo.se`)
+      - traefik.http.routers.vobilo-www-https.tls=true
+      - traefik.http.routers.vobilo-www-https.tls.certresolver=letsencrypt
+      - traefik.http.services.vobilo.loadbalancer.server.port=3000
 
   db:
-    image: postgres:16-alpine
+    image: postgres:15-alpine
+    container_name: vobilo-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: vobilo
-      POSTGRES_PASSWORD: vobilo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: vobilo
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -24,6 +58,32 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - vobilo
+    ports:
+      - "127.0.0.1:54329:5432"
+
+  setup:
+    image: node:20-alpine
+    profiles: [setup]
+    working_dir: /app
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://vobilo:${POSTGRES_PASSWORD}@vobilo-db:5432/vobilo
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && npx tsx prisma/seed.ts"
+    networks:
+      - vobilo
+
+networks:
+  vobilo:
+  coolify:
+    external: true
 
 volumes:
   postgres_data:
